@@ -1,0 +1,8 @@
+{
+  "protocol": "https",
+  "server": "wiki.example.org",
+  "pageTitle": "Leaderboard page",
+  "extraUserMappingPageTitle": "Leaderboard extra user mapping page",
+  "usernameSsmParameter": "/ssm/parameter/name/for/username",
+  "passwordSsmParameter": "/ssm/parameter/name/for/password"
+}

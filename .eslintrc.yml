@@ -1,0 +1,39 @@
+env:
+  es6: true
+  node: true
+  mocha: true
+extends:
+  - eslint:recommended
+rules:
+  linebreak-style:
+    - error
+    - unix
+  no-throw-literal:
+    - error
+  no-console:
+    - off
+  no-template-curly-in-string:
+    - warn
+  array-callback-return:
+    - warn
+  no-extra-bind:
+    - warn
+ignorePatterns:
+  - '**/dist/*.js'
+overrides:
+  - files: ['*.js']
+    parserOptions:
+      ecmaVersion: 10
+      sourceType: module
+      ecmaFeatures:
+        experimentalObjectRestSpread: true
+    rules:
+      indent:
+        - error
+        - 2
+      quotes:
+        - error
+        - single
+      semi:
+        - error
+        - always
