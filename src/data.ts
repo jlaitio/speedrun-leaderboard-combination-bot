@@ -1,9 +1,10 @@
+import * as fs from 'fs';
 import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
 import * as _ from 'lodash';
 import { toSeconds, toRta } from './utils';
 
-import { Category, Run, RunSource, CategoryRuns, UserMapping } from './types/runs';
+import { Category, Run, PlacedRun, RunSource, CategoryRuns, UserMapping } from './types/runs';
 
 const srcGameId = 'm1zoemd0';
 
@@ -44,7 +45,7 @@ const runSources: Array<RunSource> = [{
   getRuns: async (category: Category, extraUserMapping: Array<UserMapping>): Promise<Array<Run>> => {
     const html = await fetch(category.dtUrl).then(res => res.text());
     const $ = cheerio.load(html);
-  
+
     const runs = [];
     $('.scoreTable tr').each(function (_, row_e) {
       const row = $(row_e);
@@ -55,7 +56,7 @@ const runSources: Array<RunSource> = [{
       const srcUserMapping = extraUserMapping.find(eum => eum.dtName === dtName);
       const srcName = srcUserMapping && srcUserMapping.srcName;
       const name = srcName || dtName;
-  
+
       const rta = row.find('td:eq(2)').text().trim();
       const video = row.find('td:eq(3) a').attr('href');
       const comment = row.find('td:eq(4)').text().trim();
@@ -66,10 +67,10 @@ const runSources: Array<RunSource> = [{
         source: 'DT',
       });
     });
-  
+
     return runs.filter(Boolean);
   }
-},{
+}, {
   name: 'speedrun.com',
   getRuns: async (category: Category, _extraUserMapping: Array<UserMapping>): Promise<Array<Run>> => {
     const url = `https://www.speedrun.com/api/v1/leaderboards/${srcGameId}/category/${category.srcCategoryId}?embed=players`;
@@ -86,18 +87,18 @@ const runSources: Array<RunSource> = [{
         return acc;
       }
     }, {});
-  
+
     const allRuns = json.data.runs.map(runw => runw.run);
     const runs = (category.srcVariableKey && category.srcVariableValue)
       ? allRuns.filter(run => _.get(run, `values.${category.srcVariableKey}`) === category.srcVariableValue)
       : allRuns;
-  
+
     return runs.map((run) => {
       // Get player name from run (if guest) or precalculated mapping (if reference)
       const rawName = _.get(run, 'players[0].name');
       const userId = _.get(run, 'players[0].id');
       const name = rawName || playersById[userId] || '';
-  
+
       const video = _.get(run, 'videos.links[0].uri');
       const comment = run.comment || '';
       const date = run.date;
@@ -111,7 +112,7 @@ const runSources: Array<RunSource> = [{
   }
 }]
 
-export const getCombinedRuns = async (extraUserMapping: Array<UserMapping>) => {
+export const getCombinedRuns = async (extraUserMapping: Array<UserMapping>, dryRun: boolean) => {
   const categoryResults: Array<CategoryRuns> = await Promise.all(categories.map(async (category) => {
     const allRunsBySource = await Promise.all(runSources.map(runSource => runSource.getRuns(category, extraUserMapping)));
     const allRuns = allRunsBySource.reduce((a, c) => [...a, ...c], []);
@@ -124,15 +125,14 @@ export const getCombinedRuns = async (extraUserMapping: Array<UserMapping>) => {
       return [...acc, bestRun];
     }, []);
 
-    const runs: Array<Run> = _.sortBy(unsortedRuns, 'time').filter(run => run.time !== 0);
-    //fs.writeFileSync(`./runs_${category.srcCategoryId}.json`, JSON.stringify(runs, null, 2));
+    const unplacedRuns: Array<Run> = _.sortBy(unsortedRuns, 'time', 'date').filter(run => run.time !== 0);
 
     // Check for potential duplicates and output them to log
-    runs.filter(r => r.source === 'SRC').forEach(run => {
-      const dups = runs.filter(r => (
-        (r.rta === run.rta && r.date === run.date) 
-        || (r.video === run.video && r.video && r.video.length > 0) 
-        || (r.comment === run.comment && r.comment 
+    unplacedRuns.filter(r => r.source === 'SRC').forEach(run => {
+      const dups = unplacedRuns.filter(r => (
+        (r.rta === run.rta && r.date === run.date)
+        || (r.video === run.video && r.video && r.video.length > 0)
+        || (r.comment === run.comment && r.comment
           && r.comment.length > 20 && r.comment !== 'D e e R F o r C e'))
         && r.source !== run.source);
       if (dups.length > 0) console.log(`Possible dupe user mapping: ${JSON.stringify({
@@ -140,6 +140,18 @@ export const getCombinedRuns = async (extraUserMapping: Array<UserMapping>) => {
         dtName: dups[0].name
       })}`);
     });
+
+    // Properly generate place numbers in case of ties
+    const runs: PlacedRun[] = unplacedRuns.reduce((acc, cur, i) => {
+      const prev = (acc.length > 0) ? acc[acc.length - 1] : null;
+      const place = (prev && prev.time === cur.time) ? prev.place : (i + 1);
+      const placedRun = { ...cur, place };
+      return [...acc, placedRun];
+    }, [])
+
+    if (dryRun) {
+      fs.writeFileSync(`./runs_${category.srcCategoryId}.json`, JSON.stringify(runs, null, 2));
+    }
 
     return {
       category,

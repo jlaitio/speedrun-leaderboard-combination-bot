@@ -16,6 +16,10 @@ export interface Run {
   source: string,
 }
 
+export interface PlacedRun extends Run {
+  place: number
+}
+
 export interface RunSource {
   name: string,
   getRuns(category: Category, extraUserMapping: Array<UserMapping>): Promise<Array<Run>>,
@@ -23,7 +27,7 @@ export interface RunSource {
 
 export interface CategoryRuns {
   category: Category,
-  runs: Array<Run>,
+  runs: Array<PlacedRun>,
 }
 
 export interface UserMapping {
