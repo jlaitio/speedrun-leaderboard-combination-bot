@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as cheerio from 'cheerio';
+import moment from 'moment';
 import fetch from 'node-fetch';
 import * as _ from 'lodash';
 import { toSeconds, toRta } from './utils';
@@ -11,64 +11,65 @@ const srcGameId = 'm1zoemd0';
 const categories: Array<Category> = [
   {
     name: 'Any%',
-    dtUrl: 'http://www.deertier.com/Leaderboard/AnyPercentRealTime',
+    dtCategoryId: 'AnyPercentRealTime',
     srcCategoryId: '9d8v96lk'
   },
   {
     name: '100%',
-    dtUrl: 'http://www.deertier.com/Leaderboard/OneHundredPercent',
+    dtCategoryId: 'OneHundredPercent',
     srcCategoryId: 'xd1mpewd'
   },
   {
     name: 'Low% Ice',
-    dtUrl: 'http://www.deertier.com/Leaderboard/LowPercentIce',
+    dtCategoryId: 'LowPercentIce',
     srcCategoryId: 'rklgyq8d',
     srcVariableKey: 'onv6jzw8',
     srcVariableValue: '4lx07prl',
   },
   {
     name: 'RBO',
-    dtUrl: 'http://www.deertier.com/Leaderboard/RBO',
+    dtCategoryId: 'RBO',
     srcCategoryId: 'ndx8qmvk'
   },
   {
     name: 'GT Classic',
-    dtUrl: 'http://www.deertier.com/Leaderboard/GTClassic',
+    dtCategoryId: 'GTClassic',
     srcCategoryId: 'wdmqjw32',
     srcVariableKey: 'kn02d083',
     srcVariableValue: '81w422oq',
   },
 ];
 
+const dtDataPromise = fetch('https://deertier.com/api/records').then(res => res.json())
+
 const runSources: Array<RunSource> = [{
   name: 'deertier.com',
   getRuns: async (category: Category, extraUserMapping: Array<UserMapping>): Promise<Array<Run>> => {
-    const html = await fetch(category.dtUrl).then(res => res.text());
-    const $ = cheerio.load(html);
-
-    const runs = [];
-    $('.scoreTable tr').each(function (_, row_e) {
-      const row = $(row_e);
-      const dtName = row.find('td:eq(1)').text().trim();
-      if (!dtName) return;
-      // User SRC name for runner if present in mapping, as runners can have multiple
-      // names on DT but normally not on SRC
-      const srcUserMapping = extraUserMapping.find(eum => eum.dtName === dtName);
-      const srcName = srcUserMapping && srcUserMapping.srcName;
-      const name = srcName || dtName;
-
-      const rta = row.find('td:eq(2)').text().trim();
-      const video = row.find('td:eq(3) a').attr('href');
-      const comment = row.find('td:eq(4)').text().trim();
-      const date = row.find('td:eq(5)').text().trim();
-      runs.push({
-        name, video, comment, date, rta,
-        time: toSeconds(rta),
-        source: 'DT',
+    return (await dtDataPromise)
+      .filter(run => run.Category === category.dtCategoryId)
+      .map(run => {
+        // User SRC name for runner if present in mapping, as runners can have multiple
+        // names on DT but normally not on SRC
+        const dtName = run.Username.trim();
+        const srcUserMapping = extraUserMapping.find(eum => eum.dtName === dtName);
+        const srcName = srcUserMapping && srcUserMapping.srcName;
+        const name = srcName || dtName;
+        const date: string | null = (()=>{
+          if (!run.DateSubmitted) return null;
+          const dateM = moment(parseInt(run.DateSubmitted.match(/\/Date\((\d+)\)\//)[1]));
+          if (dateM.isValid()) return dateM.format('YYYY-MM-DD');
+          else return null;
+        })();
+        return {
+          name,
+          video: run.VideoUrl,
+          comment: run.Comment,
+          date,
+          rta: run.RealTime,
+          time: toSeconds(run.RealTime),
+          source: 'DT',
+        };
       });
-    });
-
-    return runs.filter(Boolean);
   }
 }, {
   name: 'speedrun.com',

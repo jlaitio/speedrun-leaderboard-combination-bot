@@ -1,6 +1,6 @@
 export interface Category {
   name: string,
-  dtUrl: string,
+  dtCategoryId: string,
   srcCategoryId: string,
   srcVariableKey?: string,
   srcVariableValue?: string,
