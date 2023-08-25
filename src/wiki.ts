@@ -5,6 +5,20 @@ import { getSsmSecret } from './utils';
 import wikiConfig from '../config/wiki-config.json';
 import extraUserMapping from '../config/extra-user-mapping.json';
 
+const collapseLongContent = (content: string, threshold: number) => {
+  if (content == null || content.length < threshold) {
+    return content;
+  } else {
+    return `
+  {| role="presentation" class="wikitable mw-collapsible mw-collapsed"
+| <i>Long comment</i>
+|-
+| ${content?.replace(/[\|\}]/g, '')}
+|}
+  `
+  }
+}
+
 const toWikiFormat = (category: Category, runs: PlacedRun[]) => `
 
 = [[${category.name}|${category.name}]] =
@@ -18,7 +32,7 @@ const toWikiFormat = (category: Category, runs: PlacedRun[]) => `
 ! scope="col" width="80" | Source
 ! Comment
 ${runs.map((run: PlacedRun) => `|-
-| ${run.place} || ${run.name} || ${run.rta} || ${run.date} || ${run.video ? `[${run.video} Link]` : ''} || ${run.source} || ${run.comment}
+| ${run.place} || ${run.name} || ${run.rta} || ${run.date} || ${run.video ? `[${run.video.replace(/\]/g,'')} Link]` : ''} || ${run.source} || ${collapseLongContent(run.comment, 200)}
 `).join('')}|}
 `;
 
