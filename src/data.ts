@@ -74,7 +74,8 @@ const runSources: Array<RunSource> = [{
 }, {
   name: 'speedrun.com',
   getRuns: async (category: Category, _extraUserMapping: Array<UserMapping>): Promise<Array<Run>> => {
-    const url = `https://www.speedrun.com/api/v1/leaderboards/${srcGameId}/category/${category.srcCategoryId}?embed=players`;
+    const withVariableFiltering = (category.srcVariableKey && category.srcVariableValue) ? `&var-${category.srcVariableKey}=${category.srcVariableValue}` : '';
+    const url = `https://www.speedrun.com/api/v1/leaderboards/${srcGameId}/category/${category.srcCategoryId}?embed=players${withVariableFiltering}`;
     const json = await fetch(url).then(res => res.json());
     const playersById = json.data.players.data.reduce((acc, c) => {
       const id = c.id;
@@ -89,10 +90,7 @@ const runSources: Array<RunSource> = [{
       }
     }, {});
 
-    const allRuns = json.data.runs.map(runw => runw.run);
-    const runs = (category.srcVariableKey && category.srcVariableValue)
-      ? allRuns.filter(run => _.get(run, `values.${category.srcVariableKey}`) === category.srcVariableValue)
-      : allRuns;
+    const runs = json.data.runs.map(runw => runw.run);
 
     return runs.map((run) => {
       // Get player name from run (if guest) or precalculated mapping (if reference)
